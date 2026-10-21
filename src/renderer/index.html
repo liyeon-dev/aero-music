@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>Aero Music</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <svg id="defs" width="0" height="0" aria-hidden="true">
+    <defs>
+      <radialGradient id="gl-orb" cx="50%" cy="35%" r="70%">
+        <stop offset="0" stop-color="#bff3ff"/><stop offset=".45" stop-color="#2fb5ec"/><stop offset="1" stop-color="#0a5d9c"/>
+      </radialGradient>
+      <linearGradient id="gl-leaf" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#d6ff7a"/><stop offset="1" stop-color="#3fae1c"/>
+      </linearGradient>
+      <linearGradient id="gl-shine" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset="1" stop-color="#fff" stop-opacity=".05"/>
+      </linearGradient>
+      <linearGradient id="gl-roof" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#7cc4ff"/><stop offset="1" stop-color="#1f62b8"/>
+      </linearGradient>
+      <linearGradient id="gl-wall" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#fffdf2"/><stop offset="1" stop-color="#e6cf9c"/>
+      </linearGradient>
+      <linearGradient id="gl-door" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#9ed1ff"/><stop offset="1" stop-color="#3d7fc4"/>
+      </linearGradient>
+      <radialGradient id="gl-green" cx="50%" cy="35%" r="70%">
+        <stop offset="0" stop-color="#d8ff9e"/><stop offset=".5" stop-color="#5fc22b"/><stop offset="1" stop-color="#2a7d0e"/>
+      </radialGradient>
+      <radialGradient id="gl-lens" cx="40%" cy="35%" r="70%">
+        <stop offset="0" stop-color="#ffffff"/><stop offset=".6" stop-color="#bfe5ff"/><stop offset="1" stop-color="#6aaee6"/>
+      </radialGradient>
+      <linearGradient id="gl-heart" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#ff8aa6"/><stop offset="1" stop-color="#d0163f"/>
+      </linearGradient>
+      <linearGradient id="gl-folder" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#ffe9a3"/><stop offset="1" stop-color="#f0bb45"/>
+      </linearGradient>
+      <radialGradient id="gl-cd" cx="50%" cy="50%" r="50%">
+        <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#c3cdd6"/>
+      </radialGradient>
+      <linearGradient id="gl-rainbow" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#7fd4ff"/><stop offset=".35" stop-color="#d79bff"/><stop offset=".65" stop-color="#ffe17f"/><stop offset="1" stop-color="#8dff9c"/>
+      </linearGradient>
+    </defs>
+  </svg>
+
+  <div class="frame">
+    <header class="titlebar">
+      <span class="title-orb" id="titleOrb"></span>
+      <span class="title-text" id="titleText">Aero Music</span>
+      <div class="caption">
+        <button class="cap-btn" id="capMin" title="Minimize"></button>
+        <button class="cap-btn" id="capMax" title="Maximize"></button>
+        <button class="cap-btn cap-close" id="capClose" title="Close"></button>
+      </div>
+    </header>
+
+    <div class="toolbar">
+      <div class="nav-orbs">
+        <button class="orb-btn orb-back" id="navBack" title="Back" disabled></button>
+        <button class="orb-btn orb-fwd" id="navFwd" title="Forward" disabled></button>
+      </div>
+      <div class="address" id="address"></div>
+      <form class="searchbox" id="searchForm" autocomplete="off">
+        <input id="searchInput" type="text" placeholder="Search music" spellcheck="false">
+        <button type="submit" id="searchBtn" title="Search"></button>
+      </form>
+      <button class="orb-btn theme-btn" id="themeBtn"></button>
+    </div>
+
+    <div class="client">
+      <div class="body">
+        <aside class="navpane" id="navpane"></aside>
+        <main class="content" id="content"></main>
+      </div>
+
+      <footer class="transport" id="transport">
+        <div class="seek-row">
+          <span class="time" id="timeCur">0:00</span>
+          <div class="seek" id="seek"><div class="seek-fill" id="seekFill"><span class="seek-thumb"></span></div></div>
+          <span class="time" id="timeDur">0:00</span>
+        </div>
+        <div class="transport-row">
+          <div class="np-mini" id="npMini"></div>
+          <div class="controls">
+            <button class="tbtn small toggle" id="btnShuffle" title="Shuffle"></button>
+            <div class="capsule">
+              <button class="tbtn" id="btnPrev" title="Previous"></button>
+              <button class="play-orb" id="btnPlay" title="Play"></button>
+              <button class="tbtn" id="btnNext" title="Next"></button>
+            </div>
+            <button class="tbtn small toggle" id="btnRepeat" title="Repeat"></button>
+          </div>
+          <div class="volume">
+            <button class="tbtn small" id="btnMute" title="Mute"></button>
+            <input type="range" id="vol" min="0" max="100" value="80" class="vol-slider">
+            <button class="tbtn small" id="btnMini" title="Switch to Mini Player"></button>
+          </div>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

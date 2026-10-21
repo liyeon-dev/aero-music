@@ -1,0 +1,59 @@
+{
+  "name": "aero-music",
+  "productName": "Aero Music",
+  "version": "0.1.0",
+  "description": "A Frutiger Aero desktop client for YouTube Music",
+  "author": "Li Yeon",
+  "license": "MIT",
+  "homepage": "https://github.com/liyeon-dev/aero-music",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/liyeon-dev/aero-music.git"
+  },
+  "main": "src/main/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "icons": "electron scripts/make-icons.js",
+    "dist": "electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "com.aeromusic.app",
+    "productName": "Aero Music",
+    "copyright": "Aero Music",
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "!assets/installer-*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createStartMenuShortcut": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Aero Music",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "installerSidebar": "assets/installer-sidebar.bmp",
+      "uninstallerSidebar": "assets/installer-sidebar.bmp",
+      "installerHeader": "assets/installer-header.bmp",
+      "artifactName": "AeroMusic-Setup-${version}.${ext}",
+      "uninstallDisplayName": "Aero Music",
+      "runAfterFinish": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^45.0.0",
+    "electron-builder": "^26.15.3"
+  }
+}
