@@ -1,6 +1,7 @@
 const el = (id) => document.getElementById(id);
 const box = el('toast');
 let hideTimer = null;
+document.documentElement.classList.toggle('mac', navigator.platform.startsWith('Mac'));
 
 window.toast.onShow((t) => {
   clearTimeout(hideTimer);

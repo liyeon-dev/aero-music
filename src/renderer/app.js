@@ -2,6 +2,7 @@ import { g, c } from './icons.js';
 import { Visualizer, VIZ_MODES } from './viz.js';
 
 const aero = window.aero;
+const mac = aero.platform === 'darwin';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
@@ -778,7 +779,7 @@ async function checkAuth() {
 const darkQuery = matchMedia('(prefers-color-scheme: dark)');
 const isDark = () => document.documentElement.classList.contains('dark');
 const THEMES = {
-  system: { next: 'light', icon: 'auto', label: 'Theme: match Windows' },
+  system: { next: 'light', icon: 'auto', label: mac ? 'Theme: match macOS' : 'Theme: match Windows' },
   light: { next: 'dark', icon: 'sun', label: 'Theme: light' },
   dark: { next: 'system', icon: 'moon', label: 'Theme: dark' },
 };
@@ -809,6 +810,7 @@ function wire() {
     applyTheme();
   };
   document.documentElement.classList.toggle('glass', aero.glass);
+  document.documentElement.classList.toggle('mac', mac);
   $('#titleOrb').innerHTML = c.logo;
   $('#capMin').innerHTML = g.min;
   $('#capMax').innerHTML = g.max;
@@ -831,10 +833,12 @@ function wire() {
   $('#capMax').onclick = () => aero.win.maximize();
   $('#capClose').onclick = () => aero.win.close();
   aero.win.onMaximized((max) => {
-    document.body.classList.toggle('maximized', max);
+    // A zoomed Mac window keeps its native corners and traffic lights.
+    document.body.classList.toggle('maximized', max && !mac);
     $('#capMax').innerHTML = max ? g.restore : g.max;
     $('#capMax').title = max ? 'Restore Down' : 'Maximize';
   });
+  if (mac) aero.win.onFullScreen((fs) => document.body.classList.toggle('fullscreen', fs));
 
   $('#navBack').onclick = () => {
     if (!S.back.length) return;
@@ -922,17 +926,21 @@ function wire() {
 
   document.addEventListener('keydown', (e) => {
     const typing = e.target.matches('input[type=text]');
+    const mod = e.ctrlKey || e.metaKey;
+    // On macOS Option/Cmd+←/→ move the caret in text fields.
+    const keepCaret = mac && typing;
     if (e.key === ' ' && !typing) {
       e.preventDefault();
       togglePlay();
-    } else if ((e.ctrlKey && (e.key === 'f' || e.key === 'l')) || (e.key === '/' && !typing)) {
+    } else if ((mod && (e.key === 'f' || e.key === 'l')) || (e.key === '/' && !typing)) {
       e.preventDefault();
       $('#searchInput').focus();
       $('#searchInput').select();
-    } else if (e.altKey && e.key === 'ArrowLeft') $('#navBack').click();
+    } else if (keepCaret) return;
+    else if (e.altKey && e.key === 'ArrowLeft') $('#navBack').click();
     else if (e.altKey && e.key === 'ArrowRight') $('#navFwd').click();
-    else if (e.ctrlKey && e.key === 'ArrowRight') next();
-    else if (e.ctrlKey && e.key === 'ArrowLeft') prev();
+    else if (mod && e.key === 'ArrowRight') next();
+    else if (mod && e.key === 'ArrowLeft') prev();
   });
   document.addEventListener('mouseup', (e) => {
     if (e.button === 3) $('#navBack').click();

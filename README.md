@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="../../releases/latest"><b>Download for Windows</b></a>
+  <a href="../../releases/latest"><b>Download for Windows</b></a> · <a href="../../releases/latest"><b>Download for macOS</b></a>
 </p>
 
 ![Now Playing with the Halo visualizer](docs/screenshots/now-playing-halo-dark.png)
@@ -20,10 +20,11 @@
 ## Features
 
 - **Your YouTube Music, re-skinned:** home, search, albums, artists, playlists, liked songs, lyrics, and Up Next radio, all from your own account.
-- **Real Aero glass:** on Windows 11 the window frame blurs whatever is behind it, Vista-style. Windows 10 gets a painted glass frame instead.
-- **Light and dark themes:** a sunny sky-and-green-hills look, or a night sky with aurora. You can also follow your Windows setting.
+- **Real Aero glass:** on Windows 11 the window frame blurs whatever is behind it, Vista-style. Windows 10 gets a painted glass frame instead. On a Mac, the frame uses macOS vibrancy behind the glass.
+- **Light and dark themes:** a sunny sky-and-green-hills look, or a night sky with aurora. You can also follow your system setting.
 - **Visualizers:** Glass Bars, Aurora and Halo, drawn live from the music.
-- **Windows Media Player-style controls:** glossy transport bar, taskbar thumbnail buttons, a tray icon with a mini-player flyout, and a pinnable Mini Player mode.
+- **Windows Media Player-style controls:** glossy transport bar and a pinnable Mini Player mode. On Windows you also get taskbar thumbnail buttons and a tray icon with a mini-player flyout.
+- **At home on a Mac too:** a menu bar icon with the same mini-player flyout, a Dock menu with Play/Pause, Next and Previous, and the music keeps playing in the Dock when you close the window.
 - **MSN-style "Now playing" popups** in the corner of the screen when a new song starts.
 - **Media keys** work for play/pause, next and previous.
 
@@ -33,21 +34,32 @@
 
 ## Install
 
+### Windows
+
 1. Download the **AeroMusic-Setup** `.exe` from the [latest release](../../releases/latest).
 2. Run it. If Windows shows **"Windows protected your PC"**, click **More info → Run anyway**. The app isn't code-signed, which costs money, so Windows doesn't recognise it yet.
 3. Open Aero Music and click **Sign in** to use your YouTube Music account.
 
 It installs for your user only (no admin needed), and adds Start menu and desktop shortcuts. To uninstall, go to **Settings → Apps → Installed apps → Aero Music**.
 
-**Requirements:** Windows 10 or 11 (64-bit). A YouTube Music Premium account is recommended. Without it, ads play like they do on YouTube Music.
+### macOS
+
+1. Download the **AeroMusic-mac** `.dmg` from the [latest release](../../releases/latest).
+2. Open it and drag **Aero Music** onto **Applications**.
+3. Open Aero Music from your Applications folder. The first time, macOS says it can't verify the app: click **Done**, then go to **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to Aero Music, and confirm. The app isn't signed with an Apple Developer ID, which costs money, so macOS doesn't recognise it yet. You only have to do this once.
+4. Click **Sign in** to use your YouTube Music account.
+
+One download works on both Apple Silicon and Intel Macs. To uninstall, drag **Aero Music** from Applications to the Trash.
+
+**Requirements:** Windows 10 or 11 (64-bit), or macOS 13 Ventura or later. A YouTube Music Premium account is recommended. Without it, ads play like they do on YouTube Music.
 
 ## Your privacy
 
 Aero Music has no servers, no analytics and no accounts of its own. It collects nothing.
 
 - **You sign in on Google's own sign-in page.** Aero Music never sees or stores your password.
-- **Your sign-in stays on your computer.** Like any browser, the app keeps your YouTube session so you don't have to sign in every time. It's stored locally in `%APPDATA%\Aero Music` and only ever sent to YouTube. **Sign out** in the app clears it.
-- **Settings stay local too.** Theme, volume and visualizer choices are saved on your PC.
+- **Your sign-in stays on your computer.** Like any browser, the app keeps your YouTube session so you don't have to sign in every time. It's stored locally, in `%APPDATA%\Aero Music` on Windows and `~/Library/Application Support/Aero Music` on a Mac, and only ever sent to YouTube. **Sign out** in the app clears it.
+- **Settings stay local too.** Theme, volume and visualizer choices are saved on your computer, in the same folder.
 - **The code is all here.** You can read exactly what the app does.
 
 ## Keyboard shortcuts
@@ -55,9 +67,9 @@ Aero Music has no servers, no analytics and no accounts of its own. It collects 
 | Key | Action |
 | --- | --- |
 | Space | Play / pause |
-| Ctrl+F or / | Search |
-| Ctrl+← / Ctrl+→ | Previous / next track |
-| Alt+← / Alt+→ | Back / forward |
+| Ctrl+F / ⌘F, or / | Search |
+| Ctrl+← / Ctrl+→ (⌘← / ⌘→ on a Mac) | Previous / next track |
+| Alt+← / Alt+→ (Option on a Mac) | Back / forward |
 | Media keys | Play/pause, previous, next |
 
 ## Build from source
@@ -77,7 +89,15 @@ To build the Windows installer (written to `dist/`):
 npm run dist
 ```
 
-If you change any icons or installer artwork in `scripts/make-icons.js`, regenerate them with `npm run icons`.
+To build the Mac `.dmg` (also written to `dist/`; this one has to be built on a Mac):
+
+```bash
+npm run dist:mac
+```
+
+It's a universal app for Apple Silicon and Intel, ad-hoc signed rather than signed with an Apple Developer ID.
+
+If you change any icons or installer artwork in `scripts/make-icons.js`, regenerate them with `npm run icons`. That includes the Mac app icon, the menu bar icon and the `.dmg` background.
 
 ### How it works
 

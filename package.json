@@ -15,7 +15,8 @@
   "scripts": {
     "start": "electron .",
     "icons": "electron scripts/make-icons.js",
-    "dist": "electron-builder --win nsis"
+    "dist": "electron-builder --win nsis",
+    "dist:mac": "electron-builder --mac dmg --universal"
   },
   "build": {
     "appId": "com.aeromusic.app",
@@ -25,6 +26,9 @@
       "src/**/*",
       "assets/**/*",
       "!assets/installer-*",
+      "!assets/dmg-background*",
+      "!assets/icon.icns",
+      "!assets/icon-mac.png",
       "package.json"
     ],
     "directories": {
@@ -50,6 +54,26 @@
       "artifactName": "AeroMusic-Setup-${version}.${ext}",
       "uninstallDisplayName": "Aero Music",
       "runAfterFinish": true
+    },
+    "mac": {
+      "target": [{ "target": "dmg", "arch": ["universal"] }],
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.music",
+      "darkModeSupport": true,
+      "identity": "-",
+      "hardenedRuntime": false,
+      "notarize": false
+    },
+    "dmg": {
+      "title": "${productName} ${version}",
+      "artifactName": "AeroMusic-${version}-mac.${ext}",
+      "background": "assets/dmg-background.png",
+      "window": { "width": 540, "height": 380 },
+      "iconSize": 96,
+      "contents": [
+        { "x": 140, "y": 200, "type": "file" },
+        { "x": 400, "y": 200, "type": "link", "path": "/Applications" }
+      ]
     }
   },
   "devDependencies": {

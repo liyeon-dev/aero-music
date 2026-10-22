@@ -940,3 +940,36 @@ html.dark ::-webkit-scrollbar-thumb {
 }
 html.dark ::-webkit-scrollbar-thumb:hover { border-color: #3d8fd6; background-color: #1d4570; box-shadow: 0 0 6px rgba(70,170,255,.6); }
 html.dark ::-webkit-scrollbar-corner { background: #0b121c; }
+
+/* macOS: native traffic lights, native window corners, glass over vibrancy */
+html.mac { --font: "Lucida Grande", "Helvetica Neue", sans-serif; }
+/* Stands in for Segoe UI Light. By family name, Chromium maps weight 300 of Helvetica Neue to Thin. */
+@font-face { font-family: "Aero Light"; src: local("HelveticaNeue-Light"), local("Helvetica Neue Light"); font-weight: 300; }
+html.mac .banner h1, html.mac .np-title, html.mac .signin-card h1 { font-family: "Aero Light", "Helvetica Neue", var(--font); }
+html.mac .caption { display: none; }
+html.mac .titlebar { padding-left: 78px; }
+html.mac body.fullscreen .titlebar { padding-left: 8px; }
+html.mac body.fullscreen .client { margin: 0; border-left: none; border-right: none; border-bottom: none; }
+
+/* macOS rounds, rims and shadows the window itself; keep the glass lip along the top. */
+html.mac .frame { border: none; border-radius: 0; box-shadow: inset 0 1px 0 rgba(255,255,255,.45); }
+html.mac.dark .frame { box-shadow: inset 0 1px 0 rgba(255,255,255,.16); }
+
+/* Vibrancy is greyer and less blurred than acrylic, so the tint carries more of the colour. */
+html.mac.glass .frame {
+  background:
+    linear-gradient(to bottom, rgba(255,255,255,.34) 0, rgba(255,255,255,.1) 34px, rgba(255,255,255,0) 90px),
+    repeating-linear-gradient(118deg, rgba(255,255,255,0) 0 70px, rgba(255,255,255,.09) 70px 96px, rgba(255,255,255,0) 96px 150px, rgba(255,255,255,.05) 150px 160px, rgba(255,255,255,0) 160px 260px),
+    radial-gradient(ellipse 60% 140% at 12% -30%, rgba(186,235,255,.6), rgba(186,235,255,0) 70%),
+    radial-gradient(ellipse 50% 120% at 95% 130%, rgba(70,190,140,.4), rgba(70,190,140,0) 70%),
+    radial-gradient(ellipse 40% 100% at 60% 0%, rgba(120,200,255,.35), rgba(120,200,255,0) 70%),
+    linear-gradient(180deg, rgba(70,155,225,.66), rgba(30,100,170,.74));
+}
+html.mac.dark.glass .frame {
+  background:
+    linear-gradient(to bottom, rgba(255,255,255,.14) 0, rgba(255,255,255,.03) 34px, rgba(255,255,255,0) 90px),
+    repeating-linear-gradient(118deg, rgba(255,255,255,0) 0 70px, rgba(255,255,255,.05) 70px 96px, rgba(255,255,255,0) 96px 150px, rgba(255,255,255,.03) 150px 160px, rgba(255,255,255,0) 160px 260px),
+    radial-gradient(ellipse 50% 140% at 15% -40%, rgba(80,200,255,.32), rgba(80,200,255,0) 70%),
+    radial-gradient(ellipse 50% 120% at 95% 130%, rgba(60,220,160,.2), rgba(60,220,160,0) 70%),
+    linear-gradient(180deg, rgba(28,56,94,.62), rgba(4,12,26,.8));
+}
