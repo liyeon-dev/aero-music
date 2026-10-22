@@ -681,6 +681,26 @@ html.ambient-on .np .amb-glow { opacity: .8; }
   opacity: 0; transition: opacity 1.2s ease;
 }
 html.ambient-on .np-stage::before { opacity: .85; }
+/* Behind the video and the cover, a blurred blow-up of the picture itself, so
+   colours spill out on the side they come from (like YouTube's ambient mode). */
+.np-stage:has(.amb-halo)::before { display: none; }
+.amb-halo {
+  position: absolute; z-index: -1; pointer-events: none;
+  filter: blur(44px) saturate(1.7) brightness(1.08);
+  opacity: 0; transition: opacity 1.2s ease;
+}
+html.ambient-on .amb-halo { opacity: .75; }
+.video-wrap { position: relative; isolation: isolate; }
+.video-wrap > .amb-halo {
+  left: 50%; transform: translateX(-50%);
+  width: calc(var(--fw) * 1.6); height: calc(var(--fw) * 9 / 16 * 1.9);
+  top: calc((var(--fw) * 9 / 16 + 16px) / 2 - var(--fw) * 9 / 16 * .95);
+}
+.amb-halo.art {
+  left: 50%; top: calc(50% - min(320px, 34vh) * .15); transform: translate(-50%, -50%);
+  width: calc(min(320px, 34vh) * 1.9); aspect-ratio: 1;
+  background: center / cover no-repeat;
+}
 html.ambient-on .glass-panel {
   background: linear-gradient(color-mix(in srgb, var(--amb2) 14%, rgba(255,255,255,.62)), color-mix(in srgb, var(--amb3) 12%, rgba(255,255,255,.42)));
   box-shadow: 0 6px 24px rgba(0,30,70,.35), 0 0 34px color-mix(in srgb, var(--amb2) 40%, transparent), inset 0 1px 0 rgba(255,255,255,.9), inset 0 0 0 1px rgba(255,255,255,.25);
@@ -1011,6 +1031,7 @@ html.dark .video-frame { box-shadow: 0 0 0 1px #000, 0 10px 30px rgba(0,0,0,.7),
 html.dark.ambient-on .np .amb-sky { opacity: .35; mix-blend-mode: soft-light; }
 html.dark.ambient-on .np .amb-glow { opacity: .55; }
 html.dark.ambient-on .np-stage::before { opacity: .7; }
+html.dark.ambient-on .amb-halo { opacity: .95; }
 html.dark.ambient-on .glass-panel {
   background: linear-gradient(color-mix(in srgb, var(--amb2) 14%, rgba(14,28,46,.68)), color-mix(in srgb, var(--amb3) 10%, rgba(6,14,26,.62)));
   border-color: color-mix(in srgb, var(--amb2) 45%, rgba(120,190,255,.38));

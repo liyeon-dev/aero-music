@@ -306,7 +306,7 @@ function renderStage() {
   }
   if (S.vizMode === 'video') return renderVideoStage();
   if (S.vizMode === 'art') {
-    stage.innerHTML = `<div class="np-art" id="npArt"></div>`;
+    stage.innerHTML = artHalo(t) + `<div class="np-art" id="npArt"></div>`;
     return;
   }
   stage.innerHTML = `<canvas class="viz-canvas" id="vizCanvas"></canvas>`;
@@ -334,15 +334,16 @@ function renderVideoStage() {
   stage.classList.add('video');
   if (vid.has === false && swapToVideo()) vid.has = null;
   if (vid.has === false) {
-    stage.innerHTML = `<div class="np-art" id="npArt">${t.thumb ? `<img src="${esc(t.thumb)}" alt="">` : ''}</div>
+    stage.innerHTML = `${artHalo(t)}<div class="np-art" id="npArt">${t.thumb ? `<img src="${esc(t.thumb)}" alt="">` : ''}</div>
       <div class="np-note">This track is audio only, so here's the cover instead.</div>`;
     placeVideo(null);
   } else {
     stage.innerHTML = `<div class="video-wrap">
+        <canvas class="amb-halo" id="ambHalo" width="64" height="36"></canvas>
         <div class="video-frame"><div class="video-hole" id="videoHole"></div></div>
         <div class="video-reflect"><canvas id="videoReflect"></canvas></div>
       </div>`;
-    if (vid.frame) drawReflection(vid.frame);
+    if (vid.frame) drawFrame(vid.frame);
     if (!vid.raf) vid.raf = requestAnimationFrame(trackHole);
   }
   updateFrames();
@@ -409,7 +410,7 @@ function onFrame(f) {
       vid.has = true;
       if (was === false && S.vizMode === 'video' && $('#npStage.video')) renderStage();
     }
-    drawReflection(f);
+    drawFrame(f);
     // Video palettes change constantly; a few updates a second is plenty.
     if (S.ambient && performance.now() - vid.palAt > 240) {
       vid.palAt = performance.now();
@@ -444,14 +445,34 @@ async function artAmbient(t) {
   if (pal && current() === t && S.ambient) applyPalette(pal);
 }
 
+// Ambient halo: a cover-art copy blown up and blurred behind the art, the way
+// the video gets one below.
+const artHalo = (t) => `<div class="amb-halo art" id="artHalo"${t?.thumb ? ` style="background-image:url('${esc(t.thumb)}')"` : ''}></div>`;
+
+let frameBuf = null;
+function drawFrame(f) {
+  if (!frameBuf || frameBuf.width !== f.width || frameBuf.height !== f.height) frameBuf = Object.assign(document.createElement('canvas'), { width: f.width, height: f.height });
+  frameBuf.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(f.pixels), f.width, f.height), 0, 0);
+  drawHalo();
+  drawReflection(f);
+}
+
+// The frame, stretched over a canvas larger than the video and blurred in CSS,
+// so each edge's colours spill out on that side. Each new frame is blended in
+// partly, which smooths the flicker between cuts.
+function drawHalo() {
+  const cv = $('#ambHalo');
+  if (!cv || !S.ambient) return;
+  const ctx = cv.getContext('2d');
+  ctx.globalAlpha = 0.35;
+  ctx.drawImage(frameBuf, 0, 0, cv.width, cv.height);
+}
+
 // Mirrors the last grabbed frame under the video frame. The canvas is flipped
 // in CSS, so the bottom of the picture is drawn against its bottom edge.
-let frameBuf = null;
 function drawReflection(f) {
   const cv = $('#videoReflect');
   if (!cv) return;
-  if (!frameBuf || frameBuf.width !== f.width || frameBuf.height !== f.height) frameBuf = Object.assign(document.createElement('canvas'), { width: f.width, height: f.height });
-  frameBuf.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(f.pixels), f.width, f.height), 0, 0);
   const w = cv.clientWidth;
   const h = cv.clientHeight;
   if (!w || !h) return;
@@ -482,6 +503,7 @@ function refreshNow() {
   if (!!t !== !$('.np-empty')) renderStage();
   const art = $('#npArt');
   if (art) art.innerHTML = t?.thumb ? `<img src="${esc(t.thumb)}" alt="">` : '';
+  if (t?.thumb && $('#artHalo')) $('#artHalo').style.backgroundImage = `url('${t.thumb.replace(/'/g, '%27')}')`;
   viz?.setArt(t?.thumb);
   $('#npMeta').innerHTML = t
     ? `<div class="np-title" title="${esc(t.title)}">${esc(t.title)}</div>
