@@ -11,6 +11,7 @@ const info = ipcRenderer.sendSync('app:info');
 
 contextBridge.exposeInMainWorld('aero', {
   glass: info.glass,
+  platform: info.platform,
   setTheme: (mode) => ipcRenderer.send('theme:set', mode),
   nowPlaying: (np) => ipcRenderer.send('np:update', np),
   onRemote: on('remote'),
@@ -48,5 +49,6 @@ contextBridge.exposeInMainWorld('aero', {
     close: () => ipcRenderer.send('win:close'),
     miniMode: () => ipcRenderer.send('win:mini'),
     onMaximized: on('win-maximized'),
+    onFullScreen: on('win-fullscreen'),
   },
 });

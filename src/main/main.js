@@ -12,10 +12,12 @@ if (!app.requestSingleInstanceLock()) app.quit();
 const RENDERER = path.join(__dirname, '..', 'renderer');
 const ASSETS = path.join(__dirname, '..', '..', 'assets');
 const ICON = path.join(ASSETS, 'icon.ico');
-// Real blurred glass needs the Windows 11 22H2+ system backdrop.
-const GLASS = process.platform === 'win32' && Number(os.release().split('.')[2]) >= 22621;
+const MAC = process.platform === 'darwin';
+// Real blurred glass needs the Windows 11 22H2+ system backdrop. macOS always has vibrancy.
+const GLASS = MAC || (process.platform === 'win32' && Number(os.release().split('.')[2]) >= 22621);
 
 let win = null;
+let quitting = false; // macOS: closing the window only hides it, unless the app is quitting
 let toast = null;
 let toastTimer = null;
 let tray = null;
@@ -26,7 +28,12 @@ const engine = new Engine();
 // What's playing, as last reported by the renderer (track) and the engine (playback).
 const np = { track: null, liked: false, playing: false, time: 0, duration: 0 };
 
-const glassOptions = (fallback) => (GLASS ? { backgroundMaterial: 'acrylic', backgroundColor: '#00000000' } : { backgroundColor: fallback });
+const glassOptions = (fallback) =>
+  MAC ? { vibrancy: 'under-window', visualEffectState: 'active', backgroundColor: '#00000000' }
+  : GLASS ? { backgroundMaterial: 'acrylic', backgroundColor: '#00000000' } : { backgroundColor: fallback };
+
+// macOS: keep flyouts on whichever Space is current, without the Dock-hiding process transform.
+const allSpaces = (w) => MAC && w.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
 
 function createWindow() {
   win = new BrowserWindow({
@@ -34,10 +41,9 @@ function createWindow() {
     height: 800,
     minWidth: 960,
     minHeight: 620,
-    frame: false,
+    ...(MAC ? { titleBarStyle: 'hidden', trafficLightPosition: { x: 12, y: 8 } } : { frame: false, icon: ICON }),
     show: false,
     title: 'Aero Music',
-    icon: ICON,
     ...glassOptions('#5e93b8'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -56,6 +62,18 @@ function createWindow() {
     hideToast();
     if (miniPinned) hideMini();
   });
+  if (MAC) {
+    win.on('enter-full-screen', () => win.webContents.send('win-fullscreen', true));
+    win.on('leave-full-screen', () => win.webContents.send('win-fullscreen', false));
+    // Closing hides to the Dock and playback carries on. Leave full screen first, or its Space stays black.
+    win.on('close', (e) => {
+      if (quitting) return;
+      e.preventDefault();
+      if (!win.isFullScreen()) return win.hide();
+      win.once('leave-full-screen', () => win.hide());
+      win.setFullScreen(false);
+    });
+  }
   win.on('closed', () => app.quit());
 }
 
@@ -80,9 +98,12 @@ function createToast() {
     alwaysOnTop: true,
     focusable: false,
     show: false,
+    // toast.html draws its own shadow; macOS's alpha-traced one goes stale as it slides.
+    ...(MAC && { hasShadow: false }),
     webPreferences: { preload: path.join(__dirname, 'toast-preload.js'), contextIsolation: true },
   });
   toast.loadFile(path.join(RENDERER, 'toast.html'));
+  allSpaces(toast);
 }
 
 function showToast(track) {
@@ -103,45 +124,68 @@ function hideToast() {
   if (toast && !toast.isDestroyed() && toast.isVisible()) toast.webContents.send('toast-hide');
 }
 
-// taskbar thumbnail buttons + tray
+// taskbar thumbnail buttons + tray (Dock menu + menu bar icon on macOS)
 const img = (name) => nativeImage.createFromPath(path.join(ASSETS, name + '.png'));
+let trayMenu = null;
 
 function updateShell() {
   if (!win || win.isDestroyed()) return;
   const has = !!np.track;
   const flags = has ? [] : ['disabled'];
-  win.setThumbarButtons([
+  if (process.platform === 'win32') win.setThumbarButtons([
     { tooltip: 'Previous', icon: img('prev'), flags, click: () => remote('prev') },
     { tooltip: np.playing ? 'Pause' : 'Play', icon: img(np.playing ? 'pause' : 'play'), flags, click: () => remote('toggle') },
     { tooltip: 'Next', icon: img('next'), flags, click: () => remote('next') },
   ]);
 
-  if (!tray) return;
   const artists = (np.track?.artists || []).map((a) => a.name).join(', ');
+  const nowMenu = [
+    { label: has ? np.track.title.slice(0, 60) : 'Nothing playing', enabled: false },
+    ...(has && artists ? [{ label: artists.slice(0, 60), enabled: false }] : []),
+    { type: 'separator' },
+    { label: np.playing ? 'Pause' : 'Play', enabled: has, click: () => remote('toggle') },
+    { label: 'Next', enabled: has, click: () => remote('next') },
+    { label: 'Previous', enabled: has, click: () => remote('prev') },
+  ];
+  if (MAC) app.dock.setMenu(Menu.buildFromTemplate(nowMenu));
+
+  if (!tray) return;
   const tip = has ? `${np.track.title}\n${artists}`.slice(0, 127) : 'Aero Music';
   tray.setToolTip(tip);
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: has ? np.track.title.slice(0, 60) : 'Nothing playing', enabled: false },
-      ...(has && artists ? [{ label: artists.slice(0, 60), enabled: false }] : []),
-      { type: 'separator' },
-      { label: np.playing ? 'Pause' : 'Play', enabled: has, click: () => remote('toggle') },
-      { label: 'Next', enabled: has, click: () => remote('next') },
-      { label: 'Previous', enabled: has, click: () => remote('prev') },
-      { label: np.liked ? 'Unlike' : 'Like', enabled: has, click: () => remote('like') },
-      { type: 'separator' },
-      { label: 'Show mini player', click: () => showMini() },
-      { label: 'Open Aero Music', click: showMain },
-      { type: 'separator' },
-      { label: 'Exit', click: () => app.quit() },
-    ]),
-  );
+  trayMenu = Menu.buildFromTemplate([
+    ...nowMenu,
+    { label: np.liked ? 'Unlike' : 'Like', enabled: has, click: () => remote('like') },
+    { type: 'separator' },
+    { label: 'Show mini player', click: () => showMini() },
+    { label: 'Open Aero Music', click: showMain },
+    { type: 'separator' },
+    { label: MAC ? 'Quit Aero Music' : 'Exit', click: () => app.quit() },
+  ]);
+  // A context menu on macOS would take over left-click, so it pops up on right-click instead.
+  if (!MAC) tray.setContextMenu(trayMenu);
 }
 
 function createTray() {
+  if (MAC) return createMenuBarIcon();
   tray = new Tray(ICON);
   tray.on('click', () => (mini?.isVisible() ? hideMini() : showMini()));
   tray.on('double-click', showMain);
+  updateShell();
+}
+
+// The flyout can blur (and hide) before the icon's click arrives,
+// so note at mouse-down whether that click should close it instead.
+let miniHiddenAt = 0;
+function createMenuBarIcon() {
+  const icon = img('trayTemplate');
+  icon.setTemplateImage(true);
+  tray = new Tray(icon);
+  tray.setIgnoreDoubleClickEvents(true);
+  let wasOpen = false;
+  const popMenu = () => tray.popUpContextMenu(trayMenu);
+  tray.on('mouse-down', () => (wasOpen = mini?.isVisible() || Date.now() - miniHiddenAt < 150));
+  tray.on('click', (e) => (e.ctrlKey ? popMenu() : wasOpen ? hideMini() : showMini()));
+  tray.on('right-click', popMenu);
   updateShell();
 }
 
@@ -160,11 +204,13 @@ function createMini() {
   });
   mini.loadFile(path.join(RENDERER, 'mini.html'));
   mini.on('blur', () => !miniPinned && mini.hide());
+  if (MAC) mini.on('blur', () => (miniHiddenAt = Date.now()));
   mini.webContents.on('did-finish-load', () => sendMini());
+  allSpaces(mini);
 }
 
 function sendMini() {
-  if (mini && !mini.isDestroyed()) mini.webContents.send('mini-update', { ...np, glass: GLASS });
+  if (mini && !mini.isDestroyed()) mini.webContents.send('mini-update', { ...np, glass: GLASS, platform: process.platform });
 }
 
 function showMini(pinned = false) {
@@ -264,7 +310,7 @@ function registerIpc() {
     sendMini();
   });
   ipcMain.on('viz:enable', (_e, on) => engine.win?.webContents.send('viz-enable', on));
-  ipcMain.on('app:info', (e) => (e.returnValue = { glass: GLASS }));
+  ipcMain.on('app:info', (e) => (e.returnValue = { glass: GLASS, platform: process.platform }));
   ipcMain.on('theme:set', (_e, mode) => {
     nativeTheme.themeSource = ['light', 'dark', 'system'].includes(mode) ? mode : 'system';
   });
@@ -316,8 +362,11 @@ function registerIpc() {
 }
 
 app.on('second-instance', () => win && showMain());
+app.on('activate', () => win && showMain()); // macOS Dock icon click
 
 app.whenReady().then(() => {
+  // Dev runs would show the Electron logo; packaged builds use the bundle icon.
+  if (MAC && !app.isPackaged) app.dock.setIcon(path.join(ASSETS, 'icon-mac.png'));
   registerIpc();
   engine.start();
   createWindow();
@@ -326,7 +375,8 @@ app.whenReady().then(() => {
 });
 
 app.on('before-quit', () => {
+  quitting = true;
   tray?.destroy();
   engine.destroy();
 });
-app.on('window-all-closed', () => app.quit());
+app.on('window-all-closed', () => !MAC && app.quit());

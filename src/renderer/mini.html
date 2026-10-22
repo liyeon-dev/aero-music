@@ -14,6 +14,8 @@
       --sub: #4b5d70;
       --track: linear-gradient(#c9d6e3, #e9f0f7);
     }
+    /* macOS vibrancy is greyer than acrylic, so the tint carries more of the colour. */
+    html.mac { --tint: linear-gradient(160deg, rgba(130,195,240,.68), rgba(50,120,190,.66)); }
     @media (prefers-color-scheme: dark) {
       :root {
         --tint: linear-gradient(160deg, rgba(20,40,70,.6), rgba(5,12,24,.7));
@@ -24,8 +26,10 @@
         --sub: #8fb3d4;
         --track: linear-gradient(#020509, #13202e);
       }
+      html.mac { --tint: linear-gradient(160deg, rgba(24,52,90,.66), rgba(4,12,26,.78)); }
     }
     html, body { margin: 0; height: 100%; overflow: hidden; font: 12px "Segoe UI", Tahoma, sans-serif; user-select: none; cursor: default; }
+    html.mac, html.mac body { font-family: "Lucida Grande", "Helvetica Neue", sans-serif; }
     body { background: var(--solid); }
     body.glass { background: var(--tint); }
     body::before {

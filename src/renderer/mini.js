@@ -17,6 +17,7 @@ let trackKey = null;
 
 function render(np) {
   document.body.classList.toggle('glass', !!np.glass);
+  document.documentElement.classList.toggle('mac', np.platform === 'darwin');
   const t = np.track;
   const key = t ? t.videoId : '';
   if (key !== trackKey) {
