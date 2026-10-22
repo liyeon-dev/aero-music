@@ -18,6 +18,12 @@ contextBridge.exposeInMainWorld('aero', {
     enable: (on) => ipcRenderer.send('viz:enable', on),
     onData: on('viz'),
   },
+  video: {
+    place: (rect) => ipcRenderer.send('video:bounds', rect),
+    frames: (every) => ipcRenderer.send('frames:enable', every),
+    onFrame: on('frame'),
+  },
+  artPixels: call('artPixels'),
   home: call('home'),
   search: call('search'),
   page: call('page'),
@@ -27,7 +33,7 @@ contextBridge.exposeInMainWorld('aero', {
   account: call('account'),
   like: call('like'),
   player: {
-    load: (track) => ipcRenderer.invoke('player:load', track),
+    load: (track, opts) => ipcRenderer.invoke('player:load', track, opts),
     play: () => ipcRenderer.invoke('player:play'),
     pause: () => ipcRenderer.invoke('player:pause'),
     seek: (t) => ipcRenderer.invoke('player:seek', t),

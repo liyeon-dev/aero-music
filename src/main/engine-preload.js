@@ -114,6 +114,34 @@ ipcRenderer.on('viz-enable', (_e, on) => {
   vizTimer = on ? setInterval(sampleViz, 33) : null;
 });
 
+// Small frame grabs for the video reflection and ambient light. The page's
+// MSE video is same-origin, so it can be read back from a canvas. Audio-only
+// streams ("Song" uploads) draw nothing, which is how we tell them apart.
+const FW = 64;
+const FH = 36;
+let frameTimer = null;
+let frameCtx = null;
+
+function sampleFrame() {
+  const v = document.querySelector('video');
+  if (!v) return;
+  if (v.videoWidth && v.readyState >= 2 && !isAd()) {
+    frameCtx ||= Object.assign(document.createElement('canvas'), { width: FW, height: FH }).getContext('2d', { willReadFrequently: true });
+    frameCtx.clearRect(0, 0, FW, FH);
+    frameCtx.drawImage(v, 0, 0, FW, FH);
+    const px = frameCtx.getImageData(0, 0, FW, FH).data;
+    for (let i = 3; i < px.length; i += 4 * 7) {
+      if (px[i]) return ipcRenderer.send('engine-frame', { hasVideo: true, width: FW, height: FH, aspect: v.videoWidth / v.videoHeight, pixels: px });
+    }
+  }
+  ipcRenderer.send('engine-frame', { hasVideo: false, ad: isAd() });
+}
+
+ipcRenderer.on('frames-enable', (_e, every) => {
+  clearInterval(frameTimer);
+  frameTimer = every ? setInterval(sampleFrame, every) : null;
+});
+
 // Dismiss the "Video paused. Continue watching?" prompt.
 function dismissYouThere() {
   const btn = document.querySelector('ytmusic-you-there-renderer button, tp-yt-paper-dialog ytmusic-you-there-renderer #button');

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, nativeTheme, nativeImage, Tray, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, nativeTheme, nativeImage, net, Tray, Menu } = require('electron');
 const os = require('os');
 const path = require('path');
 const { Engine } = require('./engine');
@@ -45,6 +45,11 @@ function createWindow() {
     },
   });
   win.loadFile(path.join(RENDERER, 'index.html'));
+  // A reloaded renderer starts without video or ambient light.
+  win.webContents.on('did-start-loading', () => {
+    if (engine.host) engine.dock();
+    engine.send('frames-enable', 0);
+  });
   win.once('ready-to-show', () => {
     win.show();
     updateShell();
@@ -224,6 +229,12 @@ const api = {
     ),
   lyrics: async (browseId) => P.parseLyrics(await engine.call('browse', { browseId })),
   account: async () => P.parseAccount(await engine.call('account/account_menu', {})),
+  // A tiny copy of the cover art for picking ambient colours (BGRA on Windows).
+  artPixels: async (url) => {
+    const res = await net.fetch(url);
+    const img = nativeImage.createFromBuffer(Buffer.from(await res.arrayBuffer())).resize({ width: 32, height: 32, quality: 'good' });
+    return { width: 32, height: 32, pixels: img.toBitmap(), bgra: true };
+  },
   like: async ({ videoId, liked }) => {
     await engine.call(liked ? 'like/like' : 'like/removelike', { target: { videoId } });
     return liked;
@@ -241,14 +252,16 @@ function registerIpc() {
     });
   }
 
-  ipcMain.handle('player:load', async (_e, track) => {
-    await engine.loadVideo(track.videoId);
-    engine.win.webContents.send('claim-media', {
+  // quiet: switching between a song and its music video, not a new track.
+  ipcMain.handle('player:load', async (_e, track, { start = 0, quiet = false } = {}) => {
+    await engine.loadVideo(track.videoId, start);
+    engine.send('claim-media', {
       title: track.title,
       artist: (track.artists || []).map((a) => a.name).join(', '),
       album: track.album?.name || '',
       artwork: track.thumb ? [{ src: track.thumb, sizes: '544x544', type: 'image/jpeg' }] : [],
     });
+    if (quiet) return;
     win.setTitle(`${track.title} - Aero Music`);
     showToast(track);
   });
@@ -263,7 +276,13 @@ function registerIpc() {
     updateShell();
     sendMini();
   });
-  ipcMain.on('viz:enable', (_e, on) => engine.win?.webContents.send('viz-enable', on));
+  ipcMain.on('viz:enable', (_e, on) => engine.send('viz-enable', on));
+  ipcMain.on('frames:enable', (_e, every) => engine.send('frames-enable', every));
+  // Video mode: the renderer reports where the video should sit, or null to hide it.
+  ipcMain.on('video:bounds', (_e, r) => {
+    if (r && win.isVisible()) engine.showVideo(win, r);
+    else if (engine.host) engine.dock();
+  });
   ipcMain.on('app:info', (e) => (e.returnValue = { glass: GLASS }));
   ipcMain.on('theme:set', (_e, mode) => {
     nativeTheme.themeSource = ['light', 'dark', 'system'].includes(mode) ? mode : 'system';
@@ -312,6 +331,7 @@ function registerIpc() {
   engine.on('engine-ended', () => win?.webContents.send('player-ended'));
   engine.on('engine-media', (cmd) => win?.webContents.send('media-key', cmd));
   engine.on('engine-viz', (bins) => win?.webContents.send('viz', bins));
+  engine.on('engine-frame', (f) => win?.webContents.send('frame', f));
   engine.on('auth-changed', () => win?.webContents.send('auth-changed'));
 }
 
