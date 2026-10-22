@@ -97,6 +97,9 @@ class Engine extends EventEmitter {
     this.wc.on('did-navigate', (_e, url) => this.onNavigate(url));
     this.wc.on('did-navigate-in-page', (_e, url) => this.onNavigate(url));
     this.wc.on('ipc-message', (_e, channel, payload) => this.emit(channel, payload));
+    // The page asks "leave site?" while playing, which silently cancels our
+    // own navigations (sign-in, sign-out reload). Always let them through.
+    this.wc.on('will-prevent-unload', (e) => e.preventDefault());
     this.wc.on('dom-ready', () => {
       if (!this.isYtm()) return;
       this.wc.insertCSS(VIDEO_CSS);
