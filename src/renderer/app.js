@@ -1,5 +1,6 @@
 import { g, c } from './icons.js';
 import { Visualizer, VIZ_MODES } from './viz.js';
+import { palette, applyPalette, clearPalette } from './ambient.js';
 
 const aero = window.aero;
 const $ = (s, el = document) => el.querySelector(s);
@@ -54,6 +55,8 @@ const S = {
   lyrics: {},
   npTab: 'queue',
   vizMode: store.get('vizMode', 'art'),
+  ambient: store.get('ambient', true),
+  loadedId: null, // what the engine is playing; differs when a song is swapped for its video
   theme: store.get('theme', 'system'),
   seeking: false,
   page: null,
@@ -61,6 +64,9 @@ const S = {
 
 const content = $('#content');
 let viz = null;
+// has: null until the first frames tell us whether this track has a picture.
+const vid = { has: null, since: 0, placed: null, raf: 0, every: 0, palAt: 0, frame: null };
+const artPalettes = new Map();
 let registry = [];
 let lists = [];
 let pageToken = 0;
@@ -249,11 +255,11 @@ const views = {
     registry = [];
     lists = [];
     content.scrollTop = 0;
-    content.innerHTML = `<div class="np">${bubbles(16)}
+    content.innerHTML = `<div class="np"><div class="amb amb-sky"></div><div class="amb amb-glow"></div>${bubbles(16)}
         <div class="np-left" id="npLeft">
           <div class="np-stage" id="npStage"></div>
           <div class="np-meta" id="npMeta"></div>
-          <div class="viz-modes" id="vizModes">${VIZ_MODES.map((m) => `<button class="viz-mode" data-viz="${m.id}">${m.label}</button>`).join('')}</div>
+          <div class="viz-modes" id="vizModes">${VIZ_MODES.map((m) => `<button class="viz-mode" data-viz="${m.id}">${m.label}</button>`).join('')}<span class="viz-sep"></span><button class="viz-mode amb-toggle" data-amb title="Ambient light: tint the scene with colours from the video or cover">${g.sun}</button></div>
         </div>
         <div class="glass-panel">
           <div class="tabs">
@@ -285,17 +291,20 @@ const views = {
   },
 };
 
-// The stage holds either the album art or the visualizer canvas.
+// The stage holds the album art, the music video or the visualizer canvas.
 function renderStage() {
   const stage = $('#npStage');
   if (!stage) return;
   stopViz();
+  stopVideo();
+  stage.classList.remove('video');
   const t = current();
   $('#vizModes').hidden = !t;
   if (!t) {
     stage.innerHTML = `<div class="np-empty">Nothing is playing yet.<br><br><button class="btn-aero glass" data-nav="home">Find something to play</button></div>`;
     return;
   }
+  if (S.vizMode === 'video') return renderVideoStage();
   if (S.vizMode === 'art') {
     stage.innerHTML = `<div class="np-art" id="npArt"></div>`;
     return;
@@ -315,6 +324,158 @@ function stopViz() {
   aero.viz.enable(false);
 }
 
+// video
+
+// The video itself is the hidden YouTube Music page, laid by the main process
+// over the "hole" in this frame. Songs uploaded as audio only get the art.
+function renderVideoStage() {
+  const stage = $('#npStage');
+  const t = current();
+  stage.classList.add('video');
+  if (vid.has === false && swapToVideo()) vid.has = null;
+  if (vid.has === false) {
+    stage.innerHTML = `<div class="np-art" id="npArt">${t.thumb ? `<img src="${esc(t.thumb)}" alt="">` : ''}</div>
+      <div class="np-note">This track is audio only, so here's the cover instead.</div>`;
+    placeVideo(null);
+  } else {
+    stage.innerHTML = `<div class="video-wrap">
+        <div class="video-frame"><div class="video-hole" id="videoHole"></div></div>
+        <div class="video-reflect"><canvas id="videoReflect"></canvas></div>
+      </div>`;
+    if (vid.frame) drawReflection(vid.frame);
+    if (!vid.raf) vid.raf = requestAnimationFrame(trackHole);
+  }
+  updateFrames();
+}
+
+// Follows the hole on every frame, which also covers maximize, window resizes
+// and the panel reflowing.
+function trackHole() {
+  const hole = $('#videoHole');
+  if (!hole) {
+    vid.raf = 0;
+    return placeVideo(null);
+  }
+  const r = hole.getBoundingClientRect();
+  const rect = { x: Math.round(r.left), y: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height) };
+  placeVideo(rect.width > 0 && rect.height > 0 ? rect : null);
+  vid.raf = requestAnimationFrame(trackHole);
+}
+
+function placeVideo(rect) {
+  const key = rect && `${rect.x},${rect.y},${rect.width},${rect.height}`;
+  if (key === vid.placed) return;
+  vid.placed = key;
+  aero.video.place(rect);
+}
+
+function stopVideo() {
+  cancelAnimationFrame(vid.raf);
+  vid.raf = 0;
+  placeVideo(null);
+  updateFrames();
+}
+
+// Frames come quickly while the video is on screen (for its reflection) and a
+// few times a second otherwise, for the ambient colours.
+function updateFrames() {
+  const every = !current() ? 0 : $('#videoHole') ? 100 : S.ambient ? 250 : 0;
+  if (every === vid.every) return;
+  vid.every = every;
+  aero.video.frames(every);
+}
+
+// If the song has a music video counterpart, play that instead, at the
+// matching point in the song.
+function swapToVideo() {
+  const t = current();
+  const alt = t?.alt;
+  if (!alt || S.loadedId === alt.videoId) return false;
+  const seg = alt.segments.find((s) => S.time >= s.from && S.time < s.from + s.length);
+  const start = seg ? seg.to + (S.time - seg.from) : S.time;
+  S.loadedId = alt.videoId;
+  vid.since = performance.now();
+  aero.player.load({ ...t, videoId: alt.videoId }, { start, quiet: true }).then(() => aero.player.volume(S.muted ? 0 : S.volume));
+  return true;
+}
+
+function onFrame(f) {
+  const t = current();
+  if (!t) return;
+  if (f.hasVideo) {
+    vid.frame = f;
+    if (vid.has !== true) {
+      const was = vid.has;
+      vid.has = true;
+      if (was === false && S.vizMode === 'video' && $('#npStage.video')) renderStage();
+    }
+    drawReflection(f);
+    // Video palettes change constantly; a few updates a second is plenty.
+    if (S.ambient && performance.now() - vid.palAt > 240) {
+      vid.palAt = performance.now();
+      applyPalette(palette(f));
+    }
+    return;
+  }
+  // Give a new track a moment to start (and any ad to finish) before deciding
+  // it has no picture.
+  if (f.ad) vid.since = performance.now();
+  else if (vid.has === null && S.playing && performance.now() - vid.since > 1800) {
+    if (S.vizMode === 'video' && swapToVideo()) return;
+    vid.has = false;
+    vid.frame = null;
+    if ($('#npStage.video')) renderStage();
+  }
+  if (S.ambient && vid.has !== true) artAmbient(t);
+}
+
+async function artAmbient(t) {
+  if (!t.thumb) return;
+  let pal = artPalettes.get(t.thumb);
+  if (pal === undefined) {
+    artPalettes.set(t.thumb, null);
+    try {
+      pal = palette(await aero.artPixels(t.thumb));
+      artPalettes.set(t.thumb, pal);
+    } catch {
+      return;
+    }
+  }
+  if (pal && current() === t && S.ambient) applyPalette(pal);
+}
+
+// Mirrors the last grabbed frame under the video frame. The canvas is flipped
+// in CSS, so the bottom of the picture is drawn against its bottom edge.
+let frameBuf = null;
+function drawReflection(f) {
+  const cv = $('#videoReflect');
+  if (!cv) return;
+  if (!frameBuf || frameBuf.width !== f.width || frameBuf.height !== f.height) frameBuf = Object.assign(document.createElement('canvas'), { width: f.width, height: f.height });
+  frameBuf.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(f.pixels), f.width, f.height), 0, 0);
+  const w = cv.clientWidth;
+  const h = cv.clientHeight;
+  if (!w || !h) return;
+  if (cv.width !== w || cv.height !== h) Object.assign(cv, { width: w, height: h });
+  const full = w * 9 / 16;
+  // Letterbox like the real player does (object-fit: contain).
+  const aspect = f.aspect || 16 / 9;
+  const pw = Math.min(w, full * aspect);
+  const ph = pw / aspect;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(frameBuf, (w - pw) / 2, h - full + (full - ph) / 2, pw, ph);
+}
+
+function setAmbient(on) {
+  S.ambient = on;
+  store.set('ambient', on);
+  $$('[data-amb]').forEach((b) => b.classList.toggle('on', on));
+  if (!on) clearPalette();
+  else if (current()) artAmbient(current());
+  updateFrames();
+}
+
 function refreshNow() {
   if (!$('#npLeft')) return;
   const t = current();
@@ -326,7 +487,8 @@ function refreshNow() {
     ? `<div class="np-title" title="${esc(t.title)}">${esc(t.title)}</div>
        <div class="np-artist">${artistLinks(t.artists)}${t.album ? ` — <span class="link" data-go="${esc(t.album.id)}">${esc(t.album.name)}</span>` : ''}</div>`
     : '';
-  $$('.viz-mode').forEach((b) => b.classList.toggle('active', b.dataset.viz === S.vizMode));
+  $$('[data-viz]').forEach((b) => b.classList.toggle('active', b.dataset.viz === S.vizMode));
+  $$('[data-amb]').forEach((b) => b.classList.toggle('on', S.ambient));
   renderPanel();
 }
 
@@ -397,6 +559,7 @@ function go(route, { replace = false } = {}) {
 
 function render() {
   stopViz();
+  stopVideo();
   renderAddress();
   updateNavActive();
   $('#navBack').disabled = !S.back.length;
@@ -499,9 +662,14 @@ async function loadCurrent() {
   S.time = 0;
   S.duration = parseDur(t.duration);
   S.liked = !!S.info[t.videoId]?.liked;
+  Object.assign(vid, { has: null, since: performance.now(), frame: null });
+  const id = S.vizMode === 'video' && t.alt ? t.alt.videoId : t.videoId;
+  S.loadedId = id;
   updateTrackUi();
+  if ($('#npStage.video')) renderStage();
+  updateFrames();
   try {
-    await aero.player.load(t);
+    await aero.player.load(id === t.videoId ? t : { ...t, videoId: id });
     aero.player.volume(S.muted ? 0 : S.volume);
   } catch (err) {
     console.error('load failed', err);
@@ -514,12 +682,18 @@ async function fetchInfo(t) {
   if (!S.info[t.videoId]) {
     try {
       const q = await aero.queue({ videoId: t.videoId });
-      S.info[t.videoId] = { lyricsId: q.lyricsId, liked: q.liked };
+      S.info[t.videoId] = { lyricsId: q.lyricsId, liked: q.liked, alt: q.tracks.find((x) => x.videoId === t.videoId)?.alt };
     } catch {
       S.info[t.videoId] = {};
     }
   }
+  t.alt ||= S.info[t.videoId].alt;
   if (current() !== t) return;
+  // Tracks picked from lists only learn about their music video here.
+  if (vid.has === false && S.vizMode === 'video' && swapToVideo()) {
+    vid.has = null;
+    if ($('#npStage.video')) renderStage();
+  }
   S.liked = !!S.info[t.videoId].liked;
   updateLike();
   if (S.route.view === 'now' && S.npTab === 'lyrics') renderPanel();
@@ -891,6 +1065,7 @@ function wire() {
   });
   aero.player.onEnded(() => next(true));
   aero.viz.onData((d) => viz?.feed(d));
+  aero.video.onFrame(onFrame);
   aero.player.onMediaKey((cmd) => (cmd === 'next' ? next() : prev()));
   aero.onRemote((cmd) => {
     if (cmd === 'toggle') togglePlay();
@@ -984,6 +1159,7 @@ async function onClick(e) {
     renderStage();
     return refreshNow();
   }
+  if ((x = el('[data-amb]'))) return setAmbient(!S.ambient);
   if ((x = el('[data-tab]'))) {
     S.npTab = x.dataset.tab;
     return renderPanel();

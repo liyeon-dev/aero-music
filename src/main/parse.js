@@ -240,11 +240,36 @@ function parsePage(resp, browseId) {
   return { header, sections };
 }
 
+// Songs that also have a music video come wrapped with their counterpart and
+// a map lining up the two timelines.
+function parseCounterpart(wrapper) {
+  const cp = wrapper.counterpart?.[0];
+  const videoId = cp?.counterpartRenderer?.playlistPanelVideoRenderer?.videoId;
+  if (!videoId) return null;
+  const segments = (cp.segmentMap?.segment || []).map((s) => ({
+    from: Number(s.primaryVideoStartTimeMilliseconds) / 1000,
+    to: Number(s.counterpartVideoStartTimeMilliseconds) / 1000,
+    length: Number(s.durationMilliseconds) / 1000,
+  }));
+  return { videoId, segments: segments.filter((s) => Number.isFinite(s.from + s.to + s.length)) };
+}
+
 function parseQueue(resp) {
-  const panels = findAll(resp, 'playlistPanelVideoRenderer');
+  const panels = [];
+  (function walk(o) {
+    if (Array.isArray(o)) return o.forEach(walk);
+    if (!o || typeof o !== 'object') return;
+    for (const k in o) {
+      if (k === 'playlistPanelVideoRenderer') panels.push({ p: o[k] });
+      else if (k === 'playlistPanelVideoWrapperRenderer') {
+        const p = o[k].primaryRenderer?.playlistPanelVideoRenderer;
+        if (p) panels.push({ p, alt: parseCounterpart(o[k]) });
+      } else walk(o[k]);
+    }
+  })(resp);
   const tracks = panels
-    .filter((p) => p.videoId)
-    .map((p) => {
+    .filter(({ p }) => p.videoId)
+    .map(({ p, alt }) => {
       const { artists, album } = bylineParts(p.longBylineText?.runs);
       return {
         type: 'song',
@@ -254,6 +279,7 @@ function parseQueue(resp) {
         album,
         duration: text(p.lengthText),
         thumb: thumbOf(p.thumbnail),
+        ...(alt && { alt }),
       };
     });
   const cont = findFirst(resp, 'nextRadioContinuationData') || findFirst(resp, 'nextContinuationData');

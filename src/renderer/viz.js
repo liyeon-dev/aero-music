@@ -4,6 +4,7 @@
 
 export const VIZ_MODES = [
   { id: 'art', label: 'Album art' },
+  { id: 'video', label: 'Video' },
   { id: 'bars', label: 'Glass Bars' },
   { id: 'aurora', label: 'Aurora' },
   { id: 'halo', label: 'Halo' },
