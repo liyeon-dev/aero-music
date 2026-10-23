@@ -33,19 +33,56 @@ function attach() {
   }
   // The page's own autoplay takes over before 'ended' reliably fires, so call
   // the end a moment early and let our queue load the next track first.
+  // timeupdate only lands every ~250ms, so near the end we set a timer for
+  // the exact moment instead of hoping an update falls inside the window.
+  const fireEnd = () => {
+    clearTimeout(endTimer);
+    endTimer = null;
+    if (!armed) return;
+    armed = false;
+    endSent = true;
+    ipcRenderer.send('engine-ended');
+  };
   const checkEnd = () => {
     if (isAd() || !(v.duration > 1)) return;
-    if (v.currentTime < v.duration - 1) armed = true;
-    else if (armed && v.currentTime >= v.duration - 0.3) {
-      armed = false;
-      ipcRenderer.send('engine-ended');
+    lastTime = v.currentTime;
+    lastDur = v.duration;
+    const left = (v.duration - v.currentTime) / (v.playbackRate || 1);
+    if (left > 1.5) {
+      armed = true;
+      clearTimeout(endTimer);
+      endTimer = null;
+    } else if (armed && !endTimer && !v.paused) {
+      endTimer = setTimeout(fireEnd, Math.max(0, left - 0.25) * 1000);
     }
   };
+  const cancelEnd = () => {
+    clearTimeout(endTimer);
+    endTimer = null;
+  };
   v.addEventListener('timeupdate', checkEnd);
-  v.addEventListener('ended', checkEnd);
+  v.addEventListener('ended', () => {
+    if (!isAd() && v.duration > 1) fireEnd();
+  });
+  v.addEventListener('pause', () => !v.ended && cancelEnd());
+  v.addEventListener('seeking', cancelEnd);
+  // A new source means a new track. If the last one played out without us
+  // noticing, say so, so main can tell our loads apart from the page's.
+  v.addEventListener('loadstart', () => {
+    cancelEnd();
+    const finished = !endSent && lastDur > 1 && lastTime >= lastDur - 3;
+    armed = false;
+    endSent = false;
+    lastTime = lastDur = 0;
+    if (!isAd()) ipcRenderer.send('engine-track', { finished });
+  });
 }
 
 let armed = false;
+let endSent = false;
+let endTimer = null;
+let lastTime = 0;
+let lastDur = 0;
 const isAd = () => !!document.querySelector('#movie_player.ad-showing');
 
 // The page owns navigator.mediaSession; we re-point next/previous at our

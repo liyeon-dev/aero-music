@@ -252,6 +252,7 @@ function registerIpc() {
     win.setTitle(`${track.title} - Aero Music`);
     showToast(track);
   });
+  ipcMain.handle('player:cue', (_e, track) => engine.cueVideo(track.videoId));
   ipcMain.handle('player:play', () => engine.play());
   ipcMain.handle('player:pause', () => engine.pause());
   ipcMain.handle('player:seek', (_e, t) => engine.seek(t));
@@ -310,6 +311,22 @@ function registerIpc() {
     if (mini?.isVisible()) sendMini();
   });
   engine.on('engine-ended', () => win?.webContents.send('player-ended'));
+  // The page's autoplay sometimes gets in first. If the last track had
+  // finished, treat it as ended so our queue moves on; otherwise we were
+  // already on the right track, so put it back.
+  engine.on('engine-track', async ({ finished }) => {
+    const want = engine.expected;
+    // Give the player a moment to swap its video data over to the new source.
+    await new Promise((r) => setTimeout(r, 300));
+    const id = await engine.videoId().catch(() => null);
+    if (!want || !id || id === want || engine.expected !== want) return;
+    if (finished) {
+      await engine.cueVideo(want);
+      win?.webContents.send('player-ended');
+    } else {
+      engine.loadVideo(want);
+    }
+  });
   engine.on('engine-media', (cmd) => win?.webContents.send('media-key', cmd));
   engine.on('engine-viz', (bins) => win?.webContents.send('viz', bins));
   engine.on('auth-changed', () => win?.webContents.send('auth-changed'));

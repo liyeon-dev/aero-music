@@ -110,9 +110,9 @@ function section(title, inner, scrollable = false) {
 }
 
 // mode: 'list' plays the list as the queue, 'radio' starts a radio from the song.
-function listBlock(items, { numbered = false, mode = 'radio' } = {}) {
+function listBlock(items, { numbered = false, mode = 'radio', playlistId = null } = {}) {
   const songs = items.filter((it) => it.type === 'song');
-  const L = lists.push({ items: songs, mode }) - 1;
+  const L = lists.push({ items: songs, mode, playlistId }) - 1;
   const showAlbum = songs.some((it) => it.album);
   const rows = songs
     .map((it, n) => {
@@ -239,7 +239,11 @@ const views = {
             </div>
           </div>`;
         const desc = h.description ? `<p class="desc" title="${esc(h.description)}">${esc(h.description)}</p>` : '';
-        return hero + `<div class="page-pad">${desc}${renderSections(data.sections, { numbered: isAlbum, mode: isArtist ? 'radio' : 'list' })}</div>`;
+        return hero + `<div class="page-pad">${desc}${renderSections(data.sections, {
+          numbered: isAlbum,
+          mode: isArtist ? 'radio' : 'list',
+          playlistId: route.id.startsWith('VL') ? h.playlistId : null,
+        })}</div>`;
       },
     );
   },
@@ -594,6 +598,23 @@ function playFromList(listIdx, pos) {
   if (!L) return;
   if (L.mode === 'radio') return startRadio(L.items[pos]);
   setQueue(L.items.slice(), pos);
+  if (L.playlistId) fillPlaylist(L.items[pos], L.playlistId);
+}
+
+// A playlist page only shows its first batch of songs, so fetch the
+// playlist's own queue to keep going past them.
+async function fillPlaylist(track, playlistId) {
+  try {
+    const q = await aero.queue({ videoId: track.videoId, playlistId });
+    if (current() !== track) return;
+    const at = q.tracks.findIndex((t) => t.videoId === track.videoId);
+    if (at < 0) return;
+    const have = new Set(S.queue.slice(0, S.index + 1).map((t) => t.videoId));
+    const rest = q.tracks.slice(at + 1).filter((t) => !have.has(t.videoId));
+    S.queue = [...S.queue.slice(0, S.index + 1), ...rest];
+    S.queueCont = q.continuation;
+    if (S.route.view === 'now' && S.npTab === 'queue') renderPanel();
+  } catch {}
 }
 
 function next(auto = false) {
@@ -609,7 +630,12 @@ function next(auto = false) {
     while (i === S.index);
   }
   if (i >= S.queue.length) {
-    if (S.repeat !== 'all') return;
+    if (S.repeat !== 'all') {
+      // End of the queue: stop on the last track instead of leaving the
+      // page's own autoplay to pick something.
+      if (auto) aero.player.cue(current());
+      return;
+    }
     i = 0;
   }
   S.index = i;

@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('aero', {
   like: call('like'),
   player: {
     load: (track) => ipcRenderer.invoke('player:load', track),
+    cue: (track) => ipcRenderer.invoke('player:cue', track),
     play: () => ipcRenderer.invoke('player:play'),
     pause: () => ipcRenderer.invoke('player:pause'),
     seek: (t) => ipcRenderer.invoke('player:seek', t),

@@ -162,9 +162,17 @@ class Engine extends EventEmitter {
     return this.exec(`(() => { const p = document.getElementById('movie_player'); const v = document.querySelector('video'); ${js} })()`);
   }
 
+  // `expected` is the track our queue asked for; anything else that starts
+  // playing came from the page's own autoplay.
   loadVideo(videoId) {
+    this.expected = videoId;
     return this.player(`p.loadVideoById(${JSON.stringify(videoId)}); p.playVideo && p.playVideo();`);
   }
+  cueVideo(videoId) {
+    this.expected = videoId;
+    return this.player(`p.cueVideoById(${JSON.stringify(videoId)});`);
+  }
+  videoId() { return this.player('return p.getVideoData && p.getVideoData().video_id;'); }
   play() { return this.player('p.playVideo();'); }
   pause() { return this.player('p.pauseVideo();'); }
   seek(t) { return this.player(`p.seekTo(${Number(t)}, true);`); }
