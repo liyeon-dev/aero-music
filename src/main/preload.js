@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('aero', {
   search: call('search'),
   page: call('page'),
   library: call('library'),
+  throwbacks: call('throwbacks'),
   queue: call('queue'),
   lyrics: call('lyrics'),
   account: call('account'),

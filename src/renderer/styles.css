@@ -552,7 +552,7 @@ body.maximized .client { margin: 0; border-left: none; border-right: none; borde
 }
 .np-stage:has(.np-art) { padding-bottom: calc(min(320px, 34vh) * .3); }
 .viz-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-.viz-modes {
+.viz-modes, .seg {
   display: flex; margin-top: 14px; flex: none;
   border-radius: 13px; padding: 2px;
   background: linear-gradient(rgba(255,255,255,.35), rgba(255,255,255,.12) 50%, rgba(0,50,110,.18) 51%, rgba(255,255,255,.2));
@@ -560,12 +560,14 @@ body.maximized .client { margin: 0; border-left: none; border-right: none; borde
   box-shadow: 0 2px 8px rgba(0,30,70,.3);
 }
 .viz-modes[hidden] { display: none; }
-.viz-mode {
+.viz-mode, .seg-btn {
   height: 22px; padding: 0 12px; border: 1px solid transparent; border-radius: 11px;
   background: none; color: #fff; font-size: 11px; text-shadow: 0 1px 2px rgba(0,30,70,.8);
 }
-.viz-mode:hover { background: rgba(255,255,255,.2); }
-.viz-mode.active {
+.viz-mode:hover, .seg-btn:hover { background: rgba(255,255,255,.2); }
+.tb-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
+.tb-controls .seg { margin-top: 0; }
+.viz-mode.active, .seg-btn.active {
   border-color: #0b3a6e;
   background:
     radial-gradient(ellipse 80% 50% at 50% 10%, rgba(255,255,255,.75), rgba(255,255,255,0) 75%),

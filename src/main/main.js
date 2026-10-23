@@ -211,11 +211,23 @@ async function search(query) {
   return sections;
 }
 
+// YouTube Music's own decade playlists, one section per decade ("1980s", ...).
+// The category's params are looked up by name, with the known value as backup.
+const DECADES_PARAMS = 'ggMPOg1uX3g2Vjg1bmdrVE1X';
+async function throwbacks() {
+  let params = DECADES_PARAMS;
+  try {
+    params = P.parseDecadesParams(await engine.call('browse', { browseId: 'FEmusic_moods_and_genres' })) || params;
+  } catch {}
+  return P.parseSections(await engine.call('browse', { browseId: 'FEmusic_moods_and_genres_category', params }));
+}
+
 const api = {
   home: async () => P.parseSections(await engine.call('browse', { browseId: 'FEmusic_home' })),
   search: (q) => search(q),
   page: async (browseId) => P.parsePage(await engine.call('browse', { browseId }), browseId),
   library: async () => P.parseSections(await engine.call('browse', { browseId: 'FEmusic_liked_playlists' })),
+  throwbacks: () => throwbacks(),
   queue: async ({ videoId, playlistId, continuation }) =>
     P.parseQueue(
       await engine.call('next', continuation

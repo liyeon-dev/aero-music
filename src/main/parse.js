@@ -282,4 +282,10 @@ function parseAccount(resp) {
   return { name: text(h.accountName), handle: text(h.channelHandle), photo: thumbOf(h.accountPhoto) };
 }
 
-module.exports = { parseSections, parsePage, parseQueue, parseLyrics, parseAccount };
+// The Decades button on the Moods & genres page; its params open the category.
+function parseDecadesParams(resp) {
+  const btn = findAll(resp, 'musicNavigationButtonRenderer').find((b) => /decade/i.test(text(b.buttonText)));
+  return btn?.clickCommand?.browseEndpoint?.params || null;
+}
+
+module.exports = { parseSections, parsePage, parseQueue, parseLyrics, parseAccount, parseDecadesParams };

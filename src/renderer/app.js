@@ -55,6 +55,8 @@ const S = {
   npTab: 'queue',
   vizMode: store.get('vizMode', 'art'),
   theme: store.get('theme', 'system'),
+  tbSource: store.get('tbSource', 'ytm'),
+  tbEra: store.get('tbEra', 'all'),
   seeking: false,
   page: null,
 };
@@ -188,6 +190,82 @@ function greeting() {
   return S.account?.name ? `${part}, ${S.account.name.split(' ')[0]}` : part;
 }
 
+// Aero Throwbacks: '80s to 2000s, either from YouTube Music's decade
+// playlists or from the user's own playlists that look like throwbacks.
+const TB_SOURCES = [
+  { id: 'ytm', label: 'YouTube Music' },
+  { id: 'mine', label: 'My music' },
+];
+const ERAS = [
+  { id: 'all', label: 'All eras' },
+  { id: '1980s', label: "'80s", title: "The '80s", ytm: /80/, mine: /\b(19)?80'?s\b|'80s|eighties/i },
+  { id: '1990s', label: "'90s", title: "The '90s", ytm: /90/, mine: /\b(19)?90'?s\b|'90s|nineties/i },
+  { id: '2000s', label: "'00s", title: 'The 2000s', ytm: /2000|'?00s/, mine: /\b2000'?s\b|'00s|\b00s\b|noughties|y2k/i },
+];
+const THROWBACK_WORDS = /nostalgi|throwback|old ?school|oldies|retro|\bog\b|memories|childhood|\btbt\b/i;
+let tbCache = null;
+let tbPool = [];
+
+function myThrowbacks(era) {
+  const eras = ERAS.filter((e) => e.mine);
+  return S.playlists.filter((p) => {
+    const specific = eras.filter((e) => e.mine.test(p.title));
+    if (era === 'all') return specific.length || THROWBACK_WORDS.test(p.title);
+    // Decade-named playlists go under their decade; generic ones under every era.
+    return specific.length ? specific.some((e) => e.id === era) : THROWBACK_WORDS.test(p.title);
+  });
+}
+
+function seg(options, active, attr) {
+  return `<div class="seg">${options.map((o) => `<button class="seg-btn ${o.id === active ? 'active' : ''}" ${attr}="${o.id}">${esc(o.label)}</button>`).join('')}</div>`;
+}
+
+function renderThrowbacks(sections) {
+  const eras = ERAS.filter((e) => e.ytm && (S.tbEra === 'all' || e.id === S.tbEra));
+  let body;
+  if (S.tbSource === 'ytm') {
+    const shown = eras
+      .map((e) => {
+        const s = sections.find((x) => e.ytm.test(x.title));
+        return s && { ...s, title: e.title, layout: 'carousel' };
+      })
+      .filter(Boolean);
+    tbPool = shown.flatMap((s) => s.items.filter((i) => i.playlistId || i.browseId));
+    body = shown.length ? renderSections(shown) : `<p class="nav-empty">YouTube Music didn't return any decade playlists.</p>`;
+  } else if (!S.loggedIn) {
+    tbPool = [];
+    body = `<div class="panel-note">Sign in to find throwbacks in your own playlists.<br><br><button class="btn-aero blue" data-act="signin">Sign in</button></div>`;
+  } else {
+    const mine = myThrowbacks(S.tbEra);
+    // A playlist radio (RDAMPL…) keeps the mood going past the playlist itself.
+    const radios = mine.map((p) => ({
+      type: 'playlist',
+      playlistId: 'RDAMPL' + (p.playlistId || p.browseId.replace(/^VL/, '')),
+      title: `${p.title} Radio`,
+      subtitle: 'Similar songs, based on this playlist',
+      thumb: p.thumb,
+    }));
+    tbPool = mine;
+    body = mine.length
+      ? renderSections([
+          { title: 'Your throwback playlists', layout: 'carousel', items: mine },
+          { title: 'Throwback radios', layout: 'carousel', items: radios },
+        ])
+      : `<div class="panel-note">None of your playlists look like ${S.tbEra === 'all' ? 'throwbacks' : esc(ERAS.find((e) => e.id === S.tbEra).label) + ' throwbacks'} yet.<br>
+           Put “nostalgia”, “throwback” or a decade like “90s” in a playlist's name and it will show up here.</div>`;
+  }
+  return `<div class="banner">${bubbles(10)}
+      <h1>Aero Throwbacks</h1>
+      <div class="sub">Old favourites from the '80s, the '90s and the 2000s</div>
+      <div class="tb-controls">
+        ${seg(TB_SOURCES, S.tbSource, 'data-tb-source')}
+        ${seg(ERAS, S.tbEra, 'data-tb-era')}
+        ${tbPool.length ? `<button class="btn-aero" data-act="tb-surprise">${g.shuffle} Surprise me</button>` : ''}
+      </div>
+    </div>
+    <div class="page-pad">${body}</div>`;
+}
+
 const views = {
   home() {
     return loadInto(aero.home, (sections) => banner(greeting(), 'Fresh picks from YouTube Music') + `<div class="page-pad">${renderSections(sections)}</div>`);
@@ -202,6 +280,10 @@ const views = {
         `<div class="page-pad">${sections.length ? renderSections(sections) : '<p class="nav-empty">No results.</p>'}</div>`,
       'Searching…',
     );
+  },
+
+  throwbacks() {
+    return loadInto(async () => (S.tbSource === 'ytm' ? (tbCache ||= await aero.throwbacks()) : []), renderThrowbacks, 'Digging through the crates…');
   },
 
   library() {
@@ -408,7 +490,7 @@ function render() {
   views[S.route.view](S.route);
 }
 
-const ROUTE_LABEL = { home: 'Home', library: 'Library', now: 'Now Playing', signin: 'Sign in' };
+const ROUTE_LABEL = { home: 'Home', library: 'Library', now: 'Now Playing', throwbacks: 'Aero Throwbacks', signin: 'Sign in' };
 
 function renderAddress() {
   const r = S.route;
@@ -418,7 +500,7 @@ function renderAddress() {
   else if (r.view === 'page') crumbs.push(`<span class="crumb">${esc(r.title || 'Loading…')}</span>`);
   else crumbs.push(`<span class="crumb">${ROUTE_LABEL[r.view]}</span>`);
   const sep = `<span class="crumb-sep">${g.chevron}</span>`;
-  const icon = r.view === 'now' ? c.now : r.view === 'search' ? c.search : r.view === 'library' ? c.cd : r.id === 'VLLM' ? c.liked : r.view === 'page' ? c.note : c.home;
+  const icon = r.view === 'now' ? c.now : r.view === 'search' ? c.search : r.view === 'library' ? c.cd : r.view === 'throwbacks' ? c.tape : r.id === 'VLLM' ? c.liked : r.view === 'page' ? c.note : c.home;
   $('#address').innerHTML = icon + crumbs.join(sep);
 }
 
@@ -435,6 +517,7 @@ function renderNav() {
         ${item('data-nav="home"', c.home, 'Home')}
         ${item('data-nav="now"', c.now, 'Now Playing')}
         ${item('data-nav="search"', c.search, 'Search')}
+        ${item('data-nav="throwbacks"', c.tape, 'Aero Throwbacks')}
       </div>
       <div class="nav-group">
         <div class="nav-head">Library</div>
@@ -1010,6 +1093,16 @@ async function onClick(e) {
     renderStage();
     return refreshNow();
   }
+  if ((x = el('[data-tb-source]'))) {
+    S.tbSource = x.dataset.tbSource;
+    store.set('tbSource', S.tbSource);
+    return render();
+  }
+  if ((x = el('[data-tb-era]'))) {
+    S.tbEra = x.dataset.tbEra;
+    store.set('tbEra', S.tbEra);
+    return render();
+  }
   if ((x = el('[data-tab]'))) {
     S.npTab = x.dataset.tab;
     return renderPanel();
@@ -1029,6 +1122,7 @@ async function onClick(e) {
       return aero.auth.signIn();
     }
     if (act === 'skip-signin') return go({ view: 'home' }, { replace: true });
+    if (act === 'tb-surprise' && tbPool.length) return playCollection(tbPool[Math.floor(Math.random() * tbPool.length)], true);
     if (act === 'signout') {
       content.innerHTML = loadingHtml('Signing out…');
       return aero.auth.signOut();
