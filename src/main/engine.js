@@ -36,6 +36,25 @@ async (endpoint, body) => {
   return res.json();
 }`;
 
+// Runs in the page's main world, where the player API lives, and posts what
+// the player is on to engine-preload. Installed once per page load.
+const WATCH_SRC = `
+if (!window.__aeroWatch) {
+  const post = () => {
+    const p = document.getElementById('movie_player');
+    if (!p || !p.getVideoData) return;
+    window.postMessage({
+      aero: 'watch',
+      id: (p.getVideoData() || {}).video_id,
+      t: p.getCurrentTime(),
+      dur: p.getDuration(),
+      state: p.getPlayerState(),
+    }, '*');
+  };
+  window.__aeroWatch = setInterval(post, 200);
+  document.getElementById('movie_player')?.addEventListener('onStateChange', post);
+}`;
+
 class Engine extends EventEmitter {
   constructor() {
     super();
@@ -166,13 +185,12 @@ class Engine extends EventEmitter {
   // playing came from the page's own autoplay.
   loadVideo(videoId) {
     this.expected = videoId;
-    return this.player(`p.loadVideoById(${JSON.stringify(videoId)}); p.playVideo && p.playVideo();`);
+    return this.player(`${WATCH_SRC}; p.loadVideoById(${JSON.stringify(videoId)}); p.playVideo && p.playVideo();`);
   }
   cueVideo(videoId) {
     this.expected = videoId;
-    return this.player(`p.cueVideoById(${JSON.stringify(videoId)});`);
+    return this.player(`${WATCH_SRC}; p.cueVideoById(${JSON.stringify(videoId)});`);
   }
-  videoId() { return this.player('return p.getVideoData && p.getVideoData().video_id;'); }
   play() { return this.player('p.playVideo();'); }
   pause() { return this.player('p.pauseVideo();'); }
   seek(t) { return this.player(`p.seekTo(${Number(t)}, true);`); }

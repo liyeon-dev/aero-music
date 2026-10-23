@@ -314,12 +314,9 @@ function registerIpc() {
   // The page's autoplay sometimes gets in first. If the last track had
   // finished, treat it as ended so our queue moves on; otherwise we were
   // already on the right track, so put it back.
-  engine.on('engine-track', async ({ finished }) => {
+  engine.on('engine-track', async ({ from, to, finished }) => {
     const want = engine.expected;
-    // Give the player a moment to swap its video data over to the new source.
-    await new Promise((r) => setTimeout(r, 300));
-    const id = await engine.videoId().catch(() => null);
-    if (!want || !id || id === want || engine.expected !== want) return;
+    if (!want || to === want || from !== want) return;
     if (finished) {
       await engine.cueVideo(want);
       win?.webContents.send('player-ended');

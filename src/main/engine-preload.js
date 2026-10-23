@@ -1,16 +1,22 @@
 // Runs (isolated) inside the hidden YouTube Music page. Reports what the
-// <video> element is doing and routes OS media keys back to our own queue.
+// player is doing and routes OS media keys back to our own queue.
 const { ipcRenderer } = require('electron');
 
 let video = null;
 let last = '';
 
+// Latest reading from the page's player API (see WATCH_SRC in engine.js). The
+// <video> element can't be trusted for time or length: YouTube Music plays
+// the next track gaplessly into the same stream, so its numbers span both.
+let pl = null;
+
 function report(force) {
   const v = document.querySelector('video');
   if (!v) return;
+  const fresh = pl && Date.now() - pl.at < 1000;
   const state = {
-    time: v.currentTime || 0,
-    duration: Number.isFinite(v.duration) ? v.duration : 0,
+    time: fresh ? pl.t : v.currentTime || 0,
+    duration: fresh ? pl.dur : Number.isFinite(v.duration) ? v.duration : 0,
     paused: v.paused,
     buffering: v.readyState < 3 && !v.paused,
     volume: Math.round(v.volume * 100),
@@ -31,58 +37,58 @@ function attach() {
   for (const ev of ['play', 'pause', 'playing', 'waiting', 'durationchange', 'volumechange', 'seeked']) {
     v.addEventListener(ev, () => report(true));
   }
-  // The page's own autoplay takes over before 'ended' reliably fires, so call
-  // the end a moment early and let our queue load the next track first.
-  // timeupdate only lands every ~250ms, so near the end we set a timer for
-  // the exact moment instead of hoping an update falls inside the window.
-  const fireEnd = () => {
-    clearTimeout(endTimer);
-    endTimer = null;
-    if (!armed) return;
-    armed = false;
-    endSent = true;
-    ipcRenderer.send('engine-ended');
-  };
-  const checkEnd = () => {
-    if (isAd() || !(v.duration > 1)) return;
-    lastTime = v.currentTime;
-    lastDur = v.duration;
-    const left = (v.duration - v.currentTime) / (v.playbackRate || 1);
-    if (left > 1.5) {
-      armed = true;
-      clearTimeout(endTimer);
-      endTimer = null;
-    } else if (armed && !endTimer && !v.paused) {
-      endTimer = setTimeout(fireEnd, Math.max(0, left - 0.25) * 1000);
-    }
-  };
-  const cancelEnd = () => {
-    clearTimeout(endTimer);
-    endTimer = null;
-  };
-  v.addEventListener('timeupdate', checkEnd);
-  v.addEventListener('ended', () => {
-    if (!isAd() && v.duration > 1) fireEnd();
-  });
-  v.addEventListener('pause', () => !v.ended && cancelEnd());
-  v.addEventListener('seeking', cancelEnd);
-  // A new source means a new track. If the last one played out without us
-  // noticing, say so, so main can tell our loads apart from the page's.
-  v.addEventListener('loadstart', () => {
-    cancelEnd();
-    const finished = !endSent && lastDur > 1 && lastTime >= lastDur - 3;
-    armed = false;
-    endSent = false;
-    lastTime = lastDur = 0;
-    if (!isAd()) ipcRenderer.send('engine-track', { finished });
-  });
 }
 
-let armed = false;
-let endSent = false;
+// The page's own autoplay takes over right at the end, so call the end a
+// moment early and let our queue load the next track first. Readings land
+// every ~200ms, so near the end we set a timer for the exact moment.
+let cur = { id: null, t: 0, dur: 0, armed: false, endSent: false };
 let endTimer = null;
-let lastTime = 0;
-let lastDur = 0;
+
+function cancelEnd() {
+  clearTimeout(endTimer);
+  endTimer = null;
+}
+
+function fireEnd() {
+  cancelEnd();
+  if (!cur.armed) return;
+  cur.armed = false;
+  cur.endSent = true;
+  ipcRenderer.send('engine-ended');
+}
+
+function onWatch({ id, t, dur, state }) {
+  if (!id || isAd()) return;
+  if (id !== cur.id) {
+    // A new track. If the last one played out without us noticing, say so,
+    // so main can tell our loads apart from the page's.
+    cancelEnd();
+    if (cur.id) {
+      const finished = !cur.endSent && cur.dur > 1 && cur.t >= cur.dur - 3;
+      ipcRenderer.send('engine-track', { from: cur.id, to: id, finished });
+    }
+    cur = { id, t: 0, dur: 0, armed: false, endSent: false };
+  }
+  cur.t = t;
+  cur.dur = dur;
+  pl = { t, dur, at: Date.now() };
+  if (!(dur > 1)) return;
+  if (state === 0) return fireEnd();
+  const left = dur - t;
+  if (left > 1.5) {
+    cur.armed = true;
+    cancelEnd();
+  } else if (state !== 1) {
+    cancelEnd();
+  } else if (cur.armed && !endTimer) {
+    endTimer = setTimeout(fireEnd, Math.max(0, left - 0.25) * 1000);
+  }
+}
+
+window.addEventListener('message', (e) => {
+  if (e.source === window && e.data?.aero === 'watch') onWatch(e.data);
+});
 const isAd = () => !!document.querySelector('#movie_player.ad-showing');
 
 // The page owns navigator.mediaSession; we re-point next/previous at our
