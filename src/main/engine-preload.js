@@ -66,7 +66,7 @@ function onWatch({ id, t, dur, state }) {
     cancelEnd();
     if (cur.id) {
       const finished = !cur.endSent && cur.dur > 1 && cur.t >= cur.dur - 3;
-      ipcRenderer.send('engine-track', { from: cur.id, to: id, finished });
+      ipcRenderer.send('engine-track', { from: cur.id, to: id, finished, ended: cur.endSent, t: cur.t });
     }
     cur = { id, t: 0, dur: 0, armed: false, endSent: false };
   }

@@ -183,15 +183,24 @@ class Engine extends EventEmitter {
 
   // `expected` is the track our queue asked for; anything else that starts
   // playing came from the page's own autoplay.
-  loadVideo(videoId) {
+  // `stopped` means our queue has run out and we're parked on that track.
+  loadVideo(videoId, start = 0) {
     this.expected = videoId;
-    return this.player(`${WATCH_SRC}; p.loadVideoById(${JSON.stringify(videoId)}); p.playVideo && p.playVideo();`);
+    this.stopped = false;
+    return this.player(`${WATCH_SRC}; p.loadVideoById(${JSON.stringify(videoId)}, ${Number(start) || 0}); p.playVideo && p.playVideo();`);
   }
   cueVideo(videoId) {
     this.expected = videoId;
+    this.stopped = true;
     return this.player(`${WATCH_SRC}; p.cueVideoById(${JSON.stringify(videoId)});`);
   }
-  play() { return this.player('p.playVideo();'); }
+  // If the page wandered onto something else while we were parked, play
+  // our track rather than whatever it picked.
+  play() {
+    this.stopped = false;
+    const want = JSON.stringify(this.expected || '');
+    return this.player(`const id = (p.getVideoData() || {}).video_id; if (${want} && id !== ${want}) p.loadVideoById(${want}); else p.playVideo();`);
+  }
   pause() { return this.player('p.pauseVideo();'); }
   seek(t) { return this.player(`p.seekTo(${Number(t)}, true);`); }
   setVolume(v) { return this.player(`p.unMute && p.unMute(); p.setVolume(${Math.round(Number(v))});`); }

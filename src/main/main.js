@@ -323,17 +323,21 @@ function registerIpc() {
     if (mini?.isVisible()) sendMini();
   });
   engine.on('engine-ended', () => win?.webContents.send('player-ended'));
-  // The page's autoplay sometimes gets in first. If the last track had
-  // finished, treat it as ended so our queue moves on; otherwise we were
-  // already on the right track, so put it back.
-  engine.on('engine-track', async ({ from, to, finished }) => {
+  // The page's autoplay sometimes gets in first. Once our track is over (we
+  // already reported the end, or the queue has stopped) just pause whatever
+  // it started; reloading our track there is what made songs loop. If the
+  // end slipped past us, report it now. Only a switch mid-song puts our
+  // track back, at the same spot.
+  engine.on('engine-track', async ({ from, to, finished, ended, t }) => {
     const want = engine.expected;
     if (!want || to === want || from !== want) return;
-    if (finished) {
+    if (ended || engine.stopped) {
+      engine.pause();
+    } else if (finished) {
       await engine.cueVideo(want);
       win?.webContents.send('player-ended');
     } else {
-      engine.loadVideo(want);
+      engine.loadVideo(want, t);
     }
   });
   engine.on('engine-media', (cmd) => win?.webContents.send('media-key', cmd));
