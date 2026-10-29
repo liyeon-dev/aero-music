@@ -241,9 +241,16 @@ function parsePage(resp, browseId) {
 }
 
 function parseQueue(resp) {
+  // With the song/video switch, each entry carries its other version as a
+  // "counterpart". Skip those, or every song turns up twice in a row.
+  const counterparts = new Set(
+    findAll(resp, 'counterpart')
+      .flat()
+      .map((c) => c?.counterpartRenderer?.playlistPanelVideoRenderer),
+  );
   const panels = findAll(resp, 'playlistPanelVideoRenderer');
   const tracks = panels
-    .filter((p) => p.videoId)
+    .filter((p) => p.videoId && !counterparts.has(p))
     .map((p) => {
       const { artists, album } = bylineParts(p.longBylineText?.runs);
       return {
